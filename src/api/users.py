@@ -23,9 +23,9 @@ from src.core.email_token import get_email_from_token
 from src.database.db import get_db
 from src.entity.models import User
 from src.schemas.email import RequestEmail
-from src.schemas.user import UserResponse
+from src.schemas.user import UserResponse, ResetPasswordResponse, NewPasswordModel
 from src.services.auth import AuthService, oauth2_scheme
-from src.services.email import send_email
+from src.services.email import send_email, send_reset_password_email
 from src.services.upload_file_service import UploadFileService
 from src.services.user import UserService
 
@@ -92,9 +92,11 @@ async def update_avatar_user(
         settings.CLOUDINARY_API_SECRET,
     ).upload_file(file, user.username)
 
-    user = await user_service.update_avatar_url(user.email, avatar_url)
-
-    return user
+    try:
+        user = await user_service.update_avatar_url(user.email, avatar_url)
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
 
 @router.get("/moderator")
@@ -110,3 +112,53 @@ def read_moderator(
 @router.get("/admin")
 def read_admin(current_user: User = Depends(get_current_admin_user)):
     return {"message": f"Вітаємо, {current_user.username}! Це адміністративний маршрут"}
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ResetPasswordResponse,
+)
+async def reset_password(
+    email: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    user_service: UserService = Depends(get_user_service),
+):
+    user = await user_service.get_user_by_email(email)
+    if user:
+        background_tasks.add_task(
+            send_reset_password_email, user.email, user.username, str(request.base_url)
+        )
+        return ResetPasswordResponse(
+            message="Лист для відновлення пароля надіслано на електронну пошту"
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail="Користувача не знайдено"
+    )
+
+
+@router.post("/reset_password/{token}", response_model=ResetPasswordResponse)
+async def password_reset(
+    token: str,
+    password_data: NewPasswordModel,
+    user_service: UserService = Depends(get_user_service),
+):
+    try:
+        email = get_email_from_token(token)
+        user = await user_service.get_user_by_email(email)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Користувача не знайдено"
+            )
+
+        await user_service.update_password(email, password_data.new_password)
+        return ResetPasswordResponse(message="Пароль успішно змінено")
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Помилка зміни пароля: {str(e)}",
+        )

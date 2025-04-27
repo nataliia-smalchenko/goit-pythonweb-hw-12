@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.db import get_db
 from src.services.auth import AuthService, oauth2_scheme
-from src.schemas.token import TokenResponse, RefreshTokenRequest
+from src.schemas.token import (
+    TokenResponse,
+    RefreshTokenRequest,
+)
 from src.schemas.user import UserResponse, UserCreate
 from src.services.email import send_email
 

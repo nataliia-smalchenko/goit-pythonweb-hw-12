@@ -16,7 +16,7 @@ def create_email_token(data: dict):
     return token
 
 
-def get_email_from_token(token: str):
+def get_email_from_token(token: str, detail: str="Неправильний токен для перевірки електронної пошти"):
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -26,5 +26,5 @@ def get_email_from_token(token: str):
     except jwt.PyJWTError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Неправильний токен для перевірки електронної пошти",
+            detail=detail,
         )

@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.entity.models import User
+from src.entity.models import User, UserRole
 from src.repositories.base import BaseRepository
 from src.schemas.user import UserCreate
 
@@ -44,7 +44,17 @@ class UserRepository(BaseRepository):
 
     async def update_avatar_url(self, email: str, url: str) -> User:
         user = await self.get_by_email(email)
+        if user.role != UserRole.ADMIN:
+            raise PermissionError("Only admin can update avatar")
+
         user.avatar = url
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def update_password(self, email: str, hashed_password: str) -> User:
+        user = await self.get_by_email(email)
+        user.hashed_password = hashed_password
         await self.db.commit()
         await self.db.refresh(user)
         return user
