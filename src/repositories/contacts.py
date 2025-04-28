@@ -1,3 +1,15 @@
+"""
+Contact repository for database operations.
+
+This module provides a repository class for contact-related database operations.
+It implements methods for CRUD operations, search functionality, and birthday
+management for contacts. The repository ensures data integrity and proper
+validation of contact information.
+
+The repository handles user-specific contact management and implements
+unique constraints for email and phone numbers per user.
+"""
+
 import logging
 from typing import Sequence, Optional
 from datetime import date, timedelta
@@ -12,13 +24,40 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class ContactRepository:
+    """
+    Repository class for contact database operations.
+
+    This class provides methods for managing contacts in the database,
+    including CRUD operations, search functionality, and birthday management.
+    It ensures proper data validation and user-specific contact management.
+
+    Attributes:
+        db (AsyncSession): Database session for operations
+    """
+
     def __init__(self, session: AsyncSession):
+        """
+        Initialize the contact repository.
+
+        Args:
+            session (AsyncSession): Database session for operations
+        """
         self.db = session
 
     async def get_contacts(
         self, user_id: int, limit: int = 100, offset: int = 0
     ) -> Sequence[Contact]:
-        """Отримати список контактів з пагінацією для заданого користувача"""
+        """
+        Get a paginated list of contacts for a specific user.
+
+        Args:
+            user_id (int): ID of the user
+            limit (int): Maximum number of contacts to return
+            offset (int): Number of contacts to skip
+
+        Returns:
+            Sequence[Contact]: List of contacts
+        """
         stmt = (
             select(Contact)
             .where(Contact.user_id == user_id)
@@ -31,7 +70,16 @@ class ContactRepository:
     async def get_contact_by_id(
         self, contact_id: int, user_id: int
     ) -> Optional[Contact]:
-        """Отримати контакт за його ідентифікатором для заданого користувача"""
+        """
+        Get a contact by its ID for a specific user.
+
+        Args:
+            contact_id (int): ID of the contact to retrieve
+            user_id (int): ID of the user
+
+        Returns:
+            Optional[Contact]: Contact if found, None otherwise
+        """
         stmt = select(Contact).where(
             Contact.id == contact_id, Contact.user_id == user_id
         )
@@ -39,7 +87,19 @@ class ContactRepository:
         return result.scalar_one_or_none()
 
     async def create_contact(self, body: ContactCreateSchema, user_id: int) -> Contact:
-        """Створити новий контакт з перевіркою унікальності email/телефону для користувача"""
+        """
+        Create a new contact with email/phone uniqueness check for a user.
+
+        Args:
+            body (ContactCreateSchema): Contact data to create
+            user_id (int): ID of the user creating the contact
+
+        Returns:
+            Contact: Newly created contact
+
+        Raises:
+            ValueError: If email or phone number already exists for the user
+        """
         if body.email:
             stmt = select(Contact).where(
                 Contact.email == body.email, Contact.user_id == user_id
@@ -60,7 +120,6 @@ class ContactRepository:
                     "Контакт з таким телефоном вже існує для цього користувача"
                 )
 
-        # Додаємо параметр user_id до даних контакту
         contact_data = body.model_dump()
         contact = Contact(user_id=user_id, **contact_data)
         self.db.add(contact)
@@ -71,7 +130,20 @@ class ContactRepository:
     async def update_contact(
         self, contact_id: int, body: ContactUpdateSchema, user_id: int
     ) -> Optional[Contact]:
-        """Оновити контакт з перевіркою унікальності email/телефону для заданого користувача"""
+        """
+        Update a contact with email/phone uniqueness check for a user.
+
+        Args:
+            contact_id (int): ID of the contact to update
+            body (ContactUpdateSchema): Updated contact data
+            user_id (int): ID of the user updating the contact
+
+        Returns:
+            Optional[Contact]: Updated contact if found, None otherwise
+
+        Raises:
+            ValueError: If email or phone number already exists for another contact
+        """
         contact = await self.get_contact_by_id(contact_id, user_id)
         if not contact:
             return None
@@ -113,7 +185,16 @@ class ContactRepository:
         return contact
 
     async def remove_contact(self, contact_id: int, user_id: int) -> Optional[Contact]:
-        """Видалити контакт за ідентифікатором для заданого користувача"""
+        """
+        Remove a contact by its ID for a specific user.
+
+        Args:
+            contact_id (int): ID of the contact to remove
+            user_id (int): ID of the user removing the contact
+
+        Returns:
+            Optional[Contact]: Removed contact if found, None otherwise
+        """
         contact = await self.get_contact_by_id(contact_id, user_id)
         if contact:
             await self.db.delete(contact)
@@ -130,7 +211,18 @@ class ContactRepository:
         offset: int = 0,
     ) -> Sequence[Contact]:
         """
-        Пошук контактів за іменем, прізвищем чи електронною адресою для заданого користувача.
+        Search contacts by name or email for a specific user.
+
+        Args:
+            user_id (int): ID of the user searching contacts
+            first_name (Optional[str]): First name to search for
+            last_name (Optional[str]): Last name to search for
+            email (Optional[str]): Email to search for
+            limit (int): Maximum number of results to return
+            offset (int): Number of results to skip
+
+        Returns:
+            Sequence[Contact]: List of matching contacts
         """
         stmt = select(Contact).where(Contact.user_id == user_id)
         if first_name:
@@ -147,8 +239,13 @@ class ContactRepository:
         self, user_id: int
     ) -> Sequence[Contact]:
         """
-        Отримує список контактів з майбутніми днями народження (наступні 7 днів)
-        для заданого користувача.
+        Get contacts with upcoming birthdays (next 7 days) for a specific user.
+
+        Args:
+            user_id (int): ID of the user requesting contacts
+
+        Returns:
+            Sequence[Contact]: List of contacts with upcoming birthdays
         """
         today = date.today()
         end_date = today + timedelta(days=7)
