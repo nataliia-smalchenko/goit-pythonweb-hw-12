@@ -26,7 +26,7 @@ from src.services.email import send_email, send_reset_password_email
 from src.api.auth import router as auth_router
 from src.api.users import router as users_router
 
-SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
