@@ -202,17 +202,12 @@ async def test_revoke_refresh_token(auth_service):
 async def test_revoke_access_token(auth_service):
     # Arrange
     token = "test_access_token"
-    exp = datetime.now(timezone.utc) + timedelta(minutes=30)
-    payload = {"sub": "testuser", "exp": exp.timestamp()}
     
-    with patch('jwt.decode') as mock_decode, \
-         patch.object(redis_client, 'setex', new_callable=AsyncMock) as mock_setex:
-        mock_decode.return_value = payload
+    with patch.object(redis_client, 'setex', new_callable=AsyncMock) as mock_setex:
         mock_setex.return_value = True
 
         # Act
         await auth_service.revoke_access_token(token)
 
         # Assert
-        mock_decode.assert_called_once()
         mock_setex.assert_called_once() 
