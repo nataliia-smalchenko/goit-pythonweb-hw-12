@@ -1,5 +1,6 @@
 import logging
 from typing import Sequence, Optional
+from datetime import date, timedelta
 
 from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -146,15 +147,18 @@ class ContactRepository:
         self, user_id: int
     ) -> Sequence[Contact]:
         """
-        Отримати контакти із днями народження, що настануть протягом наступних 7 днів,
+        Отримує список контактів з майбутніми днями народження (наступні 7 днів)
         для заданого користувача.
         """
+        today = date.today()
+        end_date = today + timedelta(days=7)
+        
         stmt = select(Contact).where(
             Contact.user_id == user_id,
-            func.to_char(Contact.birthday, "MM-DD").between(
-                func.to_char(func.current_date(), "MM-DD"),
-                func.to_char(func.current_date() + text("interval '7 days'"), "MM-DD"),
-            ),
+            func.date(Contact.birthday).between(
+                func.date(today),
+                func.date(end_date)
+            )
         )
         result = await self.db.execute(stmt)
         return result.scalars().all()

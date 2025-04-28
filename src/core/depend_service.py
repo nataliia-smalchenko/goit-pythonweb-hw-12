@@ -1,10 +1,12 @@
 from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
 from src.database.db import get_db
 from src.entity.models import User, UserRole
 from src.services.auth import AuthService, oauth2_scheme
 from src.services.user import UserService
+from src.conf.config import config
 
 
 def get_auth_service(db: AsyncSession = Depends(get_db)):
@@ -33,3 +35,32 @@ def get_current_admin_user(current_user: User = Depends(get_current_user)):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Недостатньо прав доступу")
     return current_user
+
+
+async def get_redis_client() -> Redis:
+    """
+    Get Redis client as a FastAPI dependency.
+
+    Returns:
+        Redis: Redis client instance.
+    """
+    redis = Redis.from_url(config.REDIS_URL)
+    try:
+        yield redis
+    finally:
+        await redis.close()
+
+
+async def get_redis(
+    redis_client: Redis = Depends(get_redis_client),
+) -> Redis:
+    """
+    Get Redis client as a FastAPI dependency.
+
+    Args:
+        redis_client: Redis client instance from dependency injection.
+
+    Returns:
+        Redis: Redis client instance.
+    """
+    return redis_client

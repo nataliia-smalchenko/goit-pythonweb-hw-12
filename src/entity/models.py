@@ -88,14 +88,14 @@ class User(Base):
         DateTime, default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    contacts: Mapped[list["Contact"]] = relationship("Contact", back_populates="owner")
+    contacts: Mapped[list["Contact"]] = relationship("Contact", back_populates="owner", cascade="all, delete-orphan")
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
-        "RefreshToken", back_populates="user"
+        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
-        return f"User(id={self.id}, email={self.email}, full_name={self.full_name})"
+        return f"User(id={self.id}, email={self.email}, username={self.username})"
 
 
 class RefreshToken(Base):

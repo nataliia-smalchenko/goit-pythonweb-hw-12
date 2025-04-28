@@ -40,11 +40,17 @@ async def register(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    user = await auth_service.register_user(user_data)
-    background_tasks.add_task(
-        send_email, user_data.email, user_data.username, str(request.base_url)
-    )
-    return user
+    try:
+        user = await auth_service.register_user(user_data)
+        background_tasks.add_task(
+            send_email, user_data.email, user_data.username, str(request.base_url)
+        )
+        return user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
 
 
 @router.post(
@@ -57,16 +63,22 @@ async def login(
     request: Request = None,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    user = await auth_service.authenticate(form_data.username, form_data.password)
-    access_token = auth_service.create_access_token(user.username)
-    refresh_token = await auth_service.create_refresh_token(
-        user.id,
-        ip_address=request.client.host if request else None,
-        user_agent=request.headers.get("user-agent") if request else None,
-    )
-    return TokenResponse(
-        access_token=access_token, token_type="bearer", refresh_token=refresh_token
-    )
+    try:
+        user = await auth_service.authenticate(form_data.username, form_data.password)
+        access_token = auth_service.create_access_token(user.username)
+        refresh_token = await auth_service.create_refresh_token(
+            user.id,
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+        )
+        return TokenResponse(
+            access_token=access_token, token_type="bearer", refresh_token=refresh_token
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.post(
@@ -79,22 +91,28 @@ async def refresh(
     request: Request = None,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    user = await auth_service.validate_refresh_token(refresh_token.refresh_token)
+    try:
+        user = await auth_service.validate_refresh_token(refresh_token.refresh_token)
 
-    new_access_token = auth_service.create_access_token(user.username)
-    new_refresh_token = await auth_service.create_refresh_token(
-        user.id,
-        ip_address=request.client.host if request else None,
-        user_agent=request.headers.get("user-agent") if request else None,
-    )
+        new_access_token = auth_service.create_access_token(user.username)
+        new_refresh_token = await auth_service.create_refresh_token(
+            user.id,
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+        )
 
-    await auth_service.revoke_refresh_token(refresh_token.refresh_token)
+        await auth_service.revoke_refresh_token(refresh_token.refresh_token)
 
-    return TokenResponse(
-        access_token=new_access_token,
-        token_type="bearer",
-        refresh_token=new_refresh_token,
-    )
+        return TokenResponse(
+            access_token=new_access_token,
+            token_type="bearer",
+            refresh_token=new_refresh_token,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -103,6 +121,13 @@ async def logout(
     token: str = Depends(oauth2_scheme),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    await auth_service.revoke_access_token(token)
-    await auth_service.revoke_refresh_token(refresh_token.refresh_token)
-    return None
+    try:
+        await auth_service.revoke_access_token(token)
+        await auth_service.revoke_refresh_token(refresh_token.refresh_token)
+        return None
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
